@@ -227,6 +227,9 @@ elseif(WIN32)
   )
   set (CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
   set (CPACK_NSIS_MUI_FINISHPAGE_RUN ${GITTYUP_NAME}.exe)
+  set (CPACK_NSIS_MUI_ICON ${RSRC_DIR}/Gittyup.ico)
+  set (CPACK_NSIS_MUI_UNIICON ${RSRC_DIR}/Gittyup.ico)
+  set (CPACK_NSIS_INSTALLED_ICON_NAME ${GITTYUP_NAME}.exe)
 
   if(CMAKE_CL_64)
     install(FILES ${RSRC_DIR}/vcredist_x64.exe
