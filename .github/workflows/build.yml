@@ -205,6 +205,15 @@ jobs:
           path: build/release/pack/Gittyup-*
           name: Gittyup ${{ matrix.env.name }}
 
+      - name: Publish Chocolatey template
+        if: matrix.env.ninja_platform == 'win'
+        uses: actions/upload-artifact@v2
+        with:
+          path: |
+            build/release/pack/chocolatey/*.nuspec
+            build/release/pack/chocolatey/tools/
+          name: Gittyup Chocolatey template
+
       - name: Test
         # TODO: Re-Enable this when https://github.com/actions/runner/issues/1206 gets resolved
         if: matrix.env.ninja_platform != 'win'
@@ -213,9 +222,44 @@ jobs:
           cd build/release
           ninja check
 
+  chocolatey:
+    needs: [build]
+    runs-on: windows-latest
+
+    steps:
+      - name: Download chocolatey template
+        uses: actions/download-artifact@v2
+        with:
+          name: Gittyup Chocolatey template
+
+      - name: Download Win32 Setup
+        uses: actions/download-artifact@v2
+        with:
+          name: Gittyup win32
+
+      - name: Download Win64 Setup
+        uses: actions/download-artifact@v2
+        with:
+          name: Gittyup win64
+
+      - name: Set Chocolatey package version
+        if: ${{ github.ref != 'refs/heads/master' }}
+        run: |
+          choco install -y xmlstarlet --version 1.6.1
+          xml.exe ed -P -L -s "/*[name() = 'package']/*[name() = 'metadata']/*[name() = 'version']" -t text -n dummy -v "-beta-${{ github.run_number }}" gittyup.nuspec
+
+      - name: Build Chocolatey package
+        run: choco pack gittyup.nuspec
+
+      - name: Publish Chocolatey package
+        uses: actions/upload-artifact@v2
+        with:
+          path: "*.nupkg"
+          name: Gittyup Chocolatey package
+
   prerelease:
     # https://github.com/marvinpinto/actions/issues/177
-    needs: [flatpak, build]
+    needs: [flatpak, build, chocolatey]
     runs-on: ubuntu-latest # does not matter which
     if: ${{ github.ref == 'refs/heads/master' }}
 
@@ -235,7 +279,6 @@ jobs:
           ls "artifacts/com.github.Murmele.Gittyup-x86_64"
 
       - name: Update GitHub prerelease
-        if: ${{ github.ref == 'refs/heads/master' }}
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -247,4 +290,5 @@ jobs:
             **/artifacts/Gittyup win32/Gittyup*.exe
             **/artifacts/Gittyup Flatpak/com.github.Murmele.Gittyup.yml
             **/com.github.Murmele.Gittyup-x86_64/*.flatpak
+            **/*.nupkg
 ...

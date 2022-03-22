@@ -317,3 +317,7 @@ if(WIN32)
 
   add_dependencies(deploy package)
 endif()
+
+if(WIN32)
+  add_subdirectory(chocolatey)
+endif()
