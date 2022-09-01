@@ -1,3 +1,7 @@
+if(APPLE)
+  set(REPOVIEW_IMPL_FILE RepoView_mac.mm)
+endif()
+
 add_library(
   ui
   AdvancedSearchWidget.cpp
@@ -51,7 +55,8 @@ add_library(
   TreeProxy.cpp
   TreeView.cpp
   TreeWidget.cpp
-  ViewDelegate.cpp)
+  ViewDelegate.cpp
+  ${REPOVIEW_IMPL_FILE})
 
 target_compile_definitions(ui PRIVATE BUILD_DESCRIPTION="${BUILD_DESCRIPTION}")
 

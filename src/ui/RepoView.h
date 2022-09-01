@@ -283,6 +283,7 @@ public:
 
   // terminal
   void openTerminal();
+  QString getDefaultTerminal();
   // file manager
   void openFileManager();
 
@@ -365,6 +366,8 @@ private:
     git::Repository repo;
     LogEntry *entry;
   };
+
+  void showTerminalError();
 
   ToolBar *toolBar() const;
   CommitList *commitList() const;

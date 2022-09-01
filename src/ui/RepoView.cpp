@@ -60,6 +60,7 @@
 #include <QUrlQuery>
 #include <QVBoxLayout>
 #include <QtConcurrent>
+#include <qprocess.h>
 
 #if defined(Q_OS_WIN)
 #include <Windows.h>
@@ -2510,133 +2511,112 @@ ConfigDialog *RepoView::configureSettings(ConfigDialog::Index index) {
   return dialog;
 }
 
-void RepoView::openTerminal() {
-  QString terminalCmd =
-      Settings::instance()->value("terminal/command").toString();
+void RepoView::showTerminalError() {
+  auto messagebox = new QMessageBox(this);
+  messagebox->setWindowTitle(tr("No terminal executable found"));
+  messagebox->setText(tr("No terminal executable was found. Please configure "
+                         "a terminal in the configuration."));
+  messagebox->setStandardButtons(QMessageBox::Ok);
+  messagebox->addButton(tr("Open Configuration"), QMessageBox::ApplyRole);
+  messagebox->setAttribute(Qt::WA_DeleteOnClose);
 
-  if (terminalCmd.isEmpty()) {
+  connect(
+      messagebox, &QMessageBox::buttonClicked, this,
+      [=](QAbstractButton *button) {
+        if (messagebox->buttonRole(button) == QMessageBox::ApplyRole) {
+          SettingsDialog::openSharedInstance();
+        }
+      },
+      Qt::QueuedConnection);
+  messagebox->open();
+}
+
+#ifndef Q_OS_MAC
+QString RepoView::getDefaultTerminal() {
+  static QString detectedTerminal = nullptr;
+
+  if (detectedTerminal.isNull()) {
+    detectedTerminal = "";
 #if defined(Q_OS_WIN)
-    static QString detectedTerminal = nullptr;
 
-    if (detectedTerminal.isNull()) {
-      detectedTerminal = "";
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QString programFilesDir = env.value("PROGRAMFILES");
+    QString programFiles32Dir = env.value("PROGRAMFILES(x86)");
 
-      QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-      QString programFilesDir = env.value("PROGRAMFILES");
-      QString programFiles32Dir = env.value("PROGRAMFILES(x86)");
+    QStringList candidates;
 
-      QStringList candidates;
+    candidates.append("git-bash");
+    if (!programFilesDir.isEmpty())
+      candidates.append(programFilesDir + "/Git/git-bash.exe");
+    if (!programFiles32Dir.isEmpty())
+      candidates.append(programFiles32Dir + "/Git/git-bash.exe");
+    if (!programFilesDir.isEmpty())
+      candidates.append(programFilesDir + "/Git/bin/bash.exe");
+    if (!programFiles32Dir.isEmpty())
+      candidates.append(programFiles32Dir + "/Git/bin/bash.exe");
+    candidates.append("cmd");
 
-      candidates.append("git-bash");
-      if (!programFilesDir.isEmpty())
-        candidates.append(programFilesDir + "/Git/git-bash.exe");
-      if (!programFiles32Dir.isEmpty())
-        candidates.append(programFiles32Dir + "/Git/git-bash.exe");
-      if (!programFilesDir.isEmpty())
-        candidates.append(programFilesDir + "/Git/bin/bash.exe");
-      if (!programFiles32Dir.isEmpty())
-        candidates.append(programFiles32Dir + "/Git/bin/bash.exe");
-      candidates.append("cmd");
+    for (QString candidate : candidates) {
+      QString exePath;
 
-      for (QString candidate : candidates) {
-        QString exePath;
+      if (QDir::isAbsolutePath(candidate)) {
+        if (QFile::exists(candidate))
+          exePath = candidate;
 
-        if (QDir::isAbsolutePath(candidate)) {
-          if (QFile::exists(candidate))
-            exePath = candidate;
+      } else {
+        exePath = QStandardPaths::findExecutable(candidate);
+      }
 
-        } else {
-          exePath = QStandardPaths::findExecutable(candidate);
-        }
-
-        if (!exePath.isEmpty()) {
-          detectedTerminal =
-              '"' + QDir::toNativeSeparators(exePath.replace("\"", "\"\"")) +
-              '"';
-          break;
-        }
+      if (!exePath.isEmpty()) {
+        detectedTerminal =
+            '"' + QDir::toNativeSeparators(exePath.replace("\"", "\"\"")) + '"';
+        break;
       }
     }
-
-    terminalCmd = detectedTerminal;
-
-#elif defined(Q_OS_MACOS)
-    static QString detectedTerminal = nullptr;
-    static const char *candidates[] = {"com.googlecode.iterm2",
-                                       "com.apple.Terminal", nullptr};
-
-    if (detectedTerminal.isNull()) {
-      detectedTerminal = "";
-
-      for (const char **candidate = candidates; *candidate; ++candidate) {
-        int res = QProcess::execute(
-            "osascript",
-            {"-e", QString("tell Finder to get application file id \"%1\"")
-                       .arg(*candidate)});
-
-        if (res == 0) {
-          detectedTerminal = QString("open -b %1").arg(*candidate) + " %1";
-          break;
-        }
-      }
-    }
-
-    terminalCmd = detectedTerminal;
 
 #elif defined(Q_OS_UNIX)
-    static QString detectedTerminal = nullptr;
     static const QStringList candidates = {
         "x-terminal-emulator", "xdg-terminal", "i3-sensible-terminal",
         "gnome-terminal",      "konsole",      "xterm",
     };
 
-    if (detectedTerminal.isNull()) {
-      detectedTerminal = "";
-
-      for (auto candidate : candidates) {
+    for (auto candidate : candidates) {
 #if defined(FLATPAK)
-        // There is no graphical terminal in the flatpak environment. Use the
-        // host terminal
-        QProcess process;
-        process.start("flatpak-spawn", {"--host", "which", candidate});
-        process.waitForFinished(-1); // will wait forever until finished
-        if (!process.readAllStandardOutput().isEmpty()) {
-          detectedTerminal = candidate;
-          break;
-        }
-#else
-        QString exePath = QStandardPaths::findExecutable(candidate);
-        if (!exePath.isEmpty()) {
-          detectedTerminal =
-              '"' + exePath.replace("\\", "\\\\").replace("\"", "\\\"") + '"';
-          break;
-        }
-#endif
+      // There is no graphical terminal in the flatpak environment. Use the
+      // host terminal
+      QProcess process;
+      process.start("flatpak-spawn", {"--host", "which", candidate});
+      process.waitForFinished(-1); // will wait forever until finished
+      if (!process.readAllStandardOutput().isEmpty()) {
+        detectedTerminal = candidate;
+        break;
       }
+#else
+      QString exePath = QStandardPaths::findExecutable(candidate);
+      if (!exePath.isEmpty()) {
+        detectedTerminal =
+            '"' + exePath.replace("\\", "\\\\").replace("\"", "\\\"") + '"';
+        break;
+      }
+#endif
     }
-
-    terminalCmd = detectedTerminal;
 #endif
   }
 
-  if (terminalCmd.isEmpty()) {
-    auto messagebox = new QMessageBox(this);
-    messagebox->setWindowTitle(tr("No terminal executable found"));
-    messagebox->setText(tr("No terminal executable was found. Please configure "
-                           "a terminal in the configuration."));
-    messagebox->setStandardButtons(QMessageBox::Ok);
-    messagebox->addButton(tr("Open Configuration"), QMessageBox::ApplyRole);
-    messagebox->setAttribute(Qt::WA_DeleteOnClose);
+  return detectedTerminal;
+}
+#endif
 
-    connect(
-        messagebox, &QMessageBox::buttonClicked, this,
-        [=](QAbstractButton *button) {
-          if (messagebox->buttonRole(button) == QMessageBox::ApplyRole) {
-            SettingsDialog::openSharedInstance();
-          }
-        },
-        Qt::QueuedConnection);
-    messagebox->open();
+void RepoView::openTerminal() {
+  QString terminalCmd =
+      Settings::instance()->value("terminal/command").toString();
+
+  if (terminalCmd.isEmpty()) {
+    terminalCmd = getDefaultTerminal();
+  }
+
+  if (terminalCmd.isEmpty()) {
+    showTerminalError();
     return;
   }
 
