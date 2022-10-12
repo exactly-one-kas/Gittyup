@@ -125,6 +125,7 @@ jobs:
             openssl_arch: linux-x86_64
             cmake_flags: "-DGENERATE_APPDATA=ON"
             cmake_env: {}
+            pack: 1
 
           - name: macos
             os: macos-latest
