@@ -11,6 +11,7 @@
 #include "conf/Settings.h"
 #include "editor/TextEditor.h"
 #include "git/Config.h"
+#include "git/Repository.h"
 #include <QCoreApplication>
 #include <QTextStream>
 
@@ -53,6 +54,9 @@ int lexemeText(lua_State *L);
 int lexemeKind(lua_State *L);
 int lexemeIsKind(lua_State *L);
 
+int repoName(lua_State *L);
+int repoEmail(lua_State *L);
+
 const luaL_Reg kOptionsFuncs[] = {{"script_dir", &optionsScriptDir},
                                   {"define_boolean", &optionsDefineBoolean},
                                   {"define_integer", &optionsDefineInteger},
@@ -80,6 +84,9 @@ const luaL_Reg kLineFuncs[] = {
 const luaL_Reg kLexemeFuncs[] = {
     {"__eq", &lexemeEq},   {"pos", &lexemePos},        {"text", &lexemeText},
     {"kind", &lexemeKind}, {"is_kind", &lexemeIsKind}, {nullptr, nullptr}};
+
+const luaL_Reg kRepoFuncs[] = {
+    {"name", &repoName}, {"email", &repoEmail}, {nullptr, nullptr}};
 
 Plugin *plugin(lua_State *L) {
   return static_cast<Plugin *>(lua_touserdata(L, lua_upvalueindex(1)));
@@ -480,6 +487,24 @@ int lexemeIsKind(lua_State *L) {
   return 1;
 }
 
+int repoName(lua_State *L) {
+  if (lua_gettop(L) != 1 || !lua_istable(L, 1))
+    luaL_error(L, "invalid arguments");
+
+  auto repo = plugin(L)->repo();
+  lua_pushstring(L, repo.config().value<QString>("user.name").toLocal8Bit());
+  return 1;
+}
+
+int repoEmail(lua_State *L) {
+  if (lua_gettop(L) != 1 || !lua_istable(L, 1))
+    luaL_error(L, "invalid arguments");
+
+  auto repo = plugin(L)->repo();
+  lua_pushstring(L, repo.config().value<QString>("user.email").toLocal8Bit());
+  return 1;
+}
+
 } // namespace
 
 Plugin::Plugin(const QString &file, const git::Repository &repo,
@@ -505,6 +530,9 @@ Plugin::Plugin(const QString &file, const git::Repository &repo,
   lua_pushstring(L, path + ";" + mDir.toUtf8() + "/?.lua");
   lua_setfield(L, -2, "path");
   lua_pop(L, 1); // package
+
+  createInstance(L, this, "Repository", kRepoFuncs);
+  lua_setglobal(L, "repo");
 
   // Load script.
   if (luaL_dofile(L, file.toLocal8Bit())) {
@@ -551,6 +579,8 @@ QString Plugin::name() const { return mName; }
 QString Plugin::scriptDir() const { return mDir; }
 
 QString Plugin::errorString() const { return mError; }
+
+git::Repository Plugin::repo() const { return mRepo; }
 
 bool Plugin::isEnabled() const {
   foreach (const QString &key, mDiagnostics.keys()) {

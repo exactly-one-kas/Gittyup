@@ -58,14 +58,16 @@ void PluginsPanel::refresh() {
     // Add options button.
     QWidget *widget = new QWidget;
     QPushButton *button = new QPushButton(tr("Options"), widget);
+
     QHBoxLayout *layout = new QHBoxLayout(widget);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addStretch();
     layout->addWidget(button);
+    layout->addStrut(button->height());
     setItemWidget(root, Description, widget);
 
     QStringList keys = plugin->optionKeys();
-    button->setEnabled(!keys.isEmpty());
+    button->setVisible(!keys.isEmpty());
     connect(button, &QPushButton::clicked, [this, plugin, keys] {
       QDialog dialog;
       dialog.setWindowTitle(tr("%1 Options").arg(plugin->name()));

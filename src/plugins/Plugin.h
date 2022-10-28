@@ -34,6 +34,7 @@ public:
   QString name() const;
   QString scriptDir() const;
   QString errorString() const;
+  git::Repository repo() const;
 
   bool isEnabled() const;
   bool isEnabled(const QString &key) const;
