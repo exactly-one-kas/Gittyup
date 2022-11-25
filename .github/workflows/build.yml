@@ -37,7 +37,8 @@ jobs:
     name: "Flatpak"
     runs-on: ubuntu-latest
     container:
-      image: bilelmoussaoui/flatpak-github-actions:kde-5.15-21.08
+      #image: bilelmoussaoui/flatpak-github-actions:kde-5.15-21.08
+      image: exactlyonekas/test:flatpak-action
       options: --privileged
     steps:
     - name: Show environment variables
@@ -91,7 +92,7 @@ jobs:
       run: cat com.github.Murmele.Gittyup/com.github.Murmele.Gittyup.yml
 
     - name: Build package
-      uses: bilelmoussaoui/flatpak-github-actions/flatpak-builder@v4
+      uses: flatpak/flatpak-github-actions/flatpak-builder@v4
       with:
         bundle: Gittyup.flatpak
         manifest-path: com.github.Murmele.Gittyup/com.github.Murmele.Gittyup.yml
